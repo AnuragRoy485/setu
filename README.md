@@ -49,6 +49,7 @@ python3 -m setu deploy hetzner --first-device my-phone
 | Hetzner Cloud | `setu deploy hetzner` | `HCLOUD_TOKEN` | `hel1` | cheapest x86 type (picked from the live price list) |
 | DigitalOcean | `setu deploy digitalocean` | `DIGITALOCEAN_TOKEN` | `blr1` (Bangalore) | `s-1vcpu-512mb-10gb` |
 | Vultr | `setu deploy vultr` | `VULTR_API_KEY` | `blr` (Bangalore) | `vc2-1c-1gb` |
+| Linode (Akamai) | `setu deploy linode` | `LINODE_TOKEN` | `us-east` | `g6-nanode-1` |
 
 Use `--region` and `--size` to change them. You pay the provider directly, usually a few dollars a month. Setu is free. Delete the server any time with `setu destroy <provider> <id>` (the id is printed after deploy).
 
@@ -142,7 +143,7 @@ Found a problem? See [SECURITY.md](SECURITY.md).
 | Needs on your computer | Python 3.8+ (stdlib only) | Python, Ansible and several packages |
 | Setup | One command, QR on screen | Config file, then playbook |
 | Protocols | WireGuard | WireGuard and IPsec |
-| Providers | Hetzner, DigitalOcean, Vultr, any SSH server | Many more clouds |
+| Providers | Hetzner, DigitalOcean, Vultr, Linode, any SSH server | Many more clouds |
 | Add or remove users later | `setu add` / web panel, no re-deploy | Edit config and re-run |
 | Ad blocking | Built in, editable rules | Built in |
 | Web panel | Yes (VPN-only) | No |
