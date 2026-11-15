@@ -340,7 +340,7 @@ def _ssh(host: str, remote: List[str], stdin: Optional[bytes] = None, tty: bool 
 def deploy_ssh(args) -> int:
     host = args.host
     if not host:
-        raise SetuError("usage: setu deploy ssh --host root@1.2.3.4 (any Ubuntu/Debian/Fedora server you can SSH into)")
+        raise SetuError("usage: setu deploy ssh --host root@1.2.3.4 (any Ubuntu/Debian/Fedora/Alpine/Arch server you can SSH into)")
     st, first, tok = _fresh_state(args)
     st["server"]["endpoint"] = host.split("@")[-1]
     sudo = [] if host.startswith("root@") else ["sudo"]

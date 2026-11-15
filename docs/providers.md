@@ -17,7 +17,7 @@ If you pass `--ssh-key`, the key is registered with the provider, installed on t
 
 ## Oracle Cloud, AWS, GCP and others
 
-Create an Ubuntu VM with a public IP yourself, open **UDP 51820** in its firewall or security group, then:
+Create an Ubuntu, Debian, Fedora, Alpine or Arch Linux VM with a public IP yourself, open **UDP 51820** in its firewall or security group, then:
 
 ```sh
 setu deploy ssh --host ubuntu@203.0.113.10

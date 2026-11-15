@@ -19,9 +19,11 @@ def run_checks(st: Dict[str, Any], runner: system.Runner) -> List[Check]:
     def add(name: str, ok: bool, hint: str = "") -> None:
         out.append((name, bool(ok), "" if ok else hint))
 
+    openrc = system.is_openrc()
+    wg_hint = "rc-service setu-wg restart" if openrc else "systemctl restart wg-quick@%s" % iface
     add("WireGuard tools installed", system.have("wg"), "install wireguard-tools")
     up = runner.run(["ip", "link", "show", iface], check=False).returncode == 0
-    add("Interface %s is up" % iface, up, "systemctl restart wg-quick@%s" % iface)
+    add("Interface %s is up" % iface, up, wg_hint)
     try:
         v4 = open("/proc/sys/net/ipv4/ip_forward").read().strip() == "1"
     except OSError:
@@ -31,12 +33,16 @@ def run_checks(st: Dict[str, Any], runner: system.Runner) -> List[Check]:
     add("Listening on UDP %d" % s["port"], listening.stdout.strip() == str(s["port"]),
         "open UDP %d in your cloud firewall / security group" % s["port"])
     rules = runner.run(["iptables", "-t", "nat", "-S", "POSTROUTING"], check=False).stdout
-    add("NAT (masquerade) rule present", "MASQUERADE" in rules and s["ipv4_net"] in rules,
-        "systemctl restart wg-quick@%s" % iface)
+    add("NAT (masquerade) rule present", "MASQUERADE" in rules and s["ipv4_net"] in rules, wg_hint)
     if config.uses_local_dns(st):
-        active = runner.run(["systemctl", "is-active", "setu-dns.service"], check=False)
-        add("DNS filter (setu-dns) running", active.stdout.strip() == "active",
-            "journalctl -u setu-dns -n 30")
+        if openrc:
+            dns_ok = runner.run(["rc-service", "setu-dns", "status"], check=False).returncode == 0
+            dns_hint = "rc-service setu-dns restart"
+        else:
+            active = runner.run(["systemctl", "is-active", "setu-dns.service"], check=False)
+            dns_ok = active.stdout.strip() == "active"
+            dns_hint = "journalctl -u setu-dns -n 30"
+        add("DNS filter (setu-dns) running", dns_ok, dns_hint)
         hosts = os.path.join(system.ETC, "blocklist.hosts")
         n = 0
         if os.path.exists(hosts):

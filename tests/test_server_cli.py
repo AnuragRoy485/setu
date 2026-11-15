@@ -6,7 +6,7 @@ import urllib.request
 
 import pytest
 
-from setu import cli, cloudinit, config, server, system, web
+from setu import cli, cloudinit, config, doctor, server, system, web
 from setu import state as S
 from setu.providers import PROVIDERS
 
@@ -37,6 +37,132 @@ def test_server_init_writes_everything(host, st):
     assert any(c.startswith("systemctl enable --now wg-quick@wg0") for c in cmds)
     assert any(c == "ufw allow 51820/udp" for c in cmds)
     assert store.load()["server"]["endpoint"] == "203.0.113.7"
+
+
+@pytest.mark.parametrize("os_release,expected", [
+    ('NAME="Ubuntu"\nID=ubuntu\nID_LIKE=debian\n', "apt"),
+    ('NAME="Debian GNU/Linux"\nID=debian\n', "apt"),
+    ('ID=raspbian\nID_LIKE=debian\n', "apt"),
+    ('NAME="Fedora Linux"\nID=fedora\n', "dnf"),
+    ('NAME="Rocky Linux"\nID="rocky"\nID_LIKE="rhel centos fedora"\n', "dnf"),
+    ('ID=almalinux\n', "dnf"),
+    ('NAME="Alpine Linux"\nID=alpine\nVERSION_ID=3.20.3\n', "apk"),
+    ('NAME="Arch Linux"\nID=arch\nBUILD_ID=rolling\n', "pacman"),
+    ('NAME="EndeavourOS"\nID="endeavouros"\nID_LIKE="arch"\n', "pacman"),
+    ('ID=archarm\nID_LIKE=arch\n', "pacman"),
+    ('NAME="Gentoo"\nID=gentoo\nPRETTY_NAME="Gentoo Linux aarch64"\n', "unknown"),
+    ('ID="opensuse-tumbleweed"\nID_LIKE="opensuse suse"\n', "unknown"),
+])
+def test_detect_os(host, os_release, expected):
+    (host / "root/etc/os-release").write_text(os_release)
+    assert server.detect_os() == expected
+
+
+def test_detect_os_fallback_and_missing(host):
+    (host / "root/etc/os-release").unlink()
+    assert server.detect_os() == "unknown"
+    usr_lib = host / "root/usr/lib"
+    usr_lib.mkdir(parents=True)
+    (usr_lib / "os-release").write_text("ID=arch\n")
+    assert server.detect_os() == "pacman"
+
+
+def test_install_packages_distros(host):
+    rel = host / "root/etc/os-release"
+
+    rel.write_text("ID=alpine\n")
+    r = system.Runner(dry_run=True)
+    server.install_packages(r, adblock=True, harden=True)
+    assert r.log == [
+        ["apk", "add", "--no-cache", "wireguard-tools", "iptables", "ip6tables",
+         "iproute2", "ca-certificates", "dnsmasq"],
+        ["apk", "add", "--no-cache", "ufw"],
+    ]
+    r = system.Runner(dry_run=True)
+    server.install_packages(r, adblock=False, harden=False)
+    assert r.log == [["apk", "add", "--no-cache", "wireguard-tools", "iptables", "ip6tables",
+                      "iproute2", "ca-certificates"]]
+
+    rel.write_text("ID=arch\n")
+    r = system.Runner(dry_run=True)
+    server.install_packages(r, adblock=True, harden=True)
+    assert r.log == [["pacman", "-Sy", "--noconfirm", "--needed",
+                      "wireguard-tools", "iptables", "iproute2", "ca-certificates", "dnsmasq", "ufw"]]
+    r = system.Runner(dry_run=True)
+    server.install_packages(r, adblock=False, harden=False)
+    assert r.log == [["pacman", "-Sy", "--noconfirm", "--needed",
+                      "wireguard-tools", "iptables", "iproute2", "ca-certificates"]]
+
+    rel.write_text("ID=fedora\n")
+    r = system.Runner(dry_run=True)
+    server.install_packages(r, adblock=True, harden=False)
+    assert r.log == [["dnf", "install", "-y", "wireguard-tools", "iptables", "iproute", "dnsmasq"]]
+
+    rel.write_text("ID=gentoo\n")
+    with pytest.raises(S.SetuError, match="Alpine and Arch Linux.*dnsmasq.*--skip-packages"):
+        server.install_packages(system.Runner(dry_run=True), adblock=True, harden=False)
+    with pytest.raises(S.SetuError) as exc:
+        server.install_packages(system.Runner(dry_run=True), adblock=False, harden=False)
+    assert "dnsmasq" not in str(exc.value) and "--skip-packages" in str(exc.value)
+
+
+def test_server_init_arch_linux(host, st):
+    (host / "root/etc/os-release").write_text('NAME="Arch Linux"\nID=arch\n')
+    store = S.Store(str(host / "state.json"))
+    runner = system.Runner(dry_run=True)
+    server.init(st, store, runner, harden_host=True, fetch=lambda u: "0.0.0.0 ads.example.com\n", log=lambda *a: None)
+    cmds = [" ".join(c) for c in runner.log]
+    assert any(c.startswith("pacman -Sy --noconfirm --needed wireguard-tools") and "dnsmasq" in c and "ufw" in c for c in cmds)
+    assert any(c == "systemctl enable --now wg-quick@wg0" for c in cmds)
+    assert any(c == "ufw allow 51820/udp" for c in cmds)
+    assert (host / "root/etc/systemd/system/setu-dns.service").exists()
+    assert not (host / "root/etc/apt/apt.conf.d/20auto-upgrades").exists()
+
+
+def test_server_init_and_uninstall_alpine(host, st):
+    (host / "root/etc/os-release").write_text('NAME="Alpine Linux"\nID=alpine\nVERSION_ID=3.20.0\n')
+    store = S.Store(str(host / "state.json"))
+    runner = system.Runner(dry_run=True)
+    server.init(st, store, runner, harden_host=True, fetch=lambda u: "0.0.0.0 ads.example.com\n", log=lambda *a: None)
+    cmds = [" ".join(c) for c in runner.log]
+    assert any(c.startswith("apk add --no-cache wireguard-tools") and "dnsmasq" in c for c in cmds)
+    assert any(c == "apk add --no-cache ufw" for c in cmds)
+    assert any(c == "rc-service setu-wg restart" for c in cmds)
+    assert any(c == "rc-service setu-dns restart" for c in cmds)
+    assert any(c == "rc-service setu-web restart" for c in cmds)
+    assert not any(c.startswith("systemctl") for c in cmds)
+
+    init_dir = host / "root/etc/init.d"
+    for svc in ("setu-wg", "setu-dns", "setu-web"):
+        p = init_dir / svc
+        assert p.exists() and (p.stat().st_mode & 0o111)
+        res = subprocess.run(["sh", "-n"], input=p.read_text(), text=True, capture_output=True)
+        assert res.returncode == 0, res.stderr
+    cron = host / "root/etc/periodic/daily/setu-maintenance"
+    assert cron.exists() and (cron.stat().st_mode & 0o111)
+    assert subprocess.run(["sh", "-n"], input=cron.read_text(), text=True, capture_output=True).returncode == 0
+
+    checks = doctor.run_checks(st, system.Runner(dry_run=True))
+    assert any(name == "DNS filter (setu-dns) running" and ok for name, ok, _ in checks)
+
+    class DownRunner(system.Runner):
+        def run(self, cmd, check=True, input=None):
+            self.log.append(cmd)
+            rc = 1 if cmd[:3] == ["ip", "link", "show"] else 0
+            return subprocess.CompletedProcess(cmd, rc, "", "")
+
+    dr = DownRunner(dry_run=True)
+    system.reload_wireguard(st, dr)
+    assert ["rc-service", "setu-wg", "restart"] in dr.log
+    system.restart_dns(st, dr)
+    assert ["rc-service", "setu-dns", "restart"] in dr.log
+
+    un_runner = system.Runner(dry_run=True)
+    server.uninstall(st, un_runner, purge=True)
+    un_cmds = [" ".join(c) for c in un_runner.log]
+    assert any(c == "rc-service setu-wg stop" for c in un_cmds)
+    assert not any(c.startswith("systemctl") for c in un_cmds)
+    assert not (init_dir / "setu-wg").exists() and not cron.exists()
 
 
 def test_cli_add_remove_pause_list(host, st, capsys):

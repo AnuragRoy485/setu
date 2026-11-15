@@ -13,8 +13,11 @@ from setu import state as S
 def host(tmp_path, monkeypatch):
     """A fake server root so nothing outside tmp_path is touched."""
     etc = tmp_path / "etc-setu"
+    root = tmp_path / "root"
+    (root / "etc").mkdir(parents=True)
+    (root / "etc/os-release").write_text('ID=ubuntu\nID_LIKE=debian\n')
     monkeypatch.setattr(system, "ETC", str(etc))
-    monkeypatch.setattr(system, "ROOT", str(tmp_path / "root"))
+    monkeypatch.setattr(system, "ROOT", str(root))
     return tmp_path
 
 

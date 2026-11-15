@@ -69,12 +69,20 @@ def render_files(st: Dict[str, Any]) -> None:
             write(hosts, "", 0o644)
 
 
+def is_openrc() -> bool:
+    from . import server
+    return server.is_openrc()
+
+
 def reload_wireguard(st: Dict[str, Any], runner: Runner) -> None:
     """Apply peers to a running interface without dropping existing connections."""
     iface = st["server"]["interface"]
     up = runner.run(["ip", "link", "show", iface], check=False).returncode == 0
     if not up:
-        runner.run(["systemctl", "enable", "--now", "wg-quick@%s" % iface])
+        if is_openrc():
+            runner.run(["rc-service", "setu-wg", "restart"])
+        else:
+            runner.run(["systemctl", "enable", "--now", "wg-quick@%s" % iface])
         return
     stripped = runner.run(["wg-quick", "strip", iface])
     runner.run(["wg", "syncconf", iface, "/dev/stdin"], input=stripped.stdout)
@@ -82,7 +90,10 @@ def reload_wireguard(st: Dict[str, Any], runner: Runner) -> None:
 
 def restart_dns(st: Dict[str, Any], runner: Runner) -> None:
     if config.uses_local_dns(st):
-        runner.run(["systemctl", "restart", "setu-dns.service"], check=False)
+        if is_openrc():
+            runner.run(["rc-service", "setu-dns", "restart"], check=False)
+        else:
+            runner.run(["systemctl", "restart", "setu-dns.service"], check=False)
 
 
 def apply(st: Dict[str, Any], runner: Runner, reload: bool = True) -> None:

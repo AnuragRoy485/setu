@@ -8,7 +8,7 @@
   <img alt="Python 3.8+" src="https://img.shields.io/badge/python-3.8%2B-3776ab.svg">
   <img alt="Dependencies: none" src="https://img.shields.io/badge/dependencies-none-success.svg">
   <img alt="WireGuard" src="https://img.shields.io/badge/protocol-WireGuard-88171a.svg">
-  <img alt="Server: Ubuntu, Debian, Fedora" src="https://img.shields.io/badge/server-Ubuntu%20%7C%20Debian%20%7C%20Fedora-orange.svg">
+  <img alt="Server: Ubuntu, Debian, Fedora, Alpine, Arch" src="https://img.shields.io/badge/server-Ubuntu%20%7C%20Debian%20%7C%20Fedora%20%7C%20Alpine%20%7C%20Arch-orange.svg">
 </p>
 
 **Setu** (Hindi/Bengali for *bridge*) sets up your own private VPN server in about three minutes. You run one command, scan a QR code with the WireGuard app, and you are connected through a server that only you control.
@@ -55,7 +55,7 @@ Use `--region` and `--size` to change them. You pay the provider directly, usual
 
 ### Option B: a server you already have (Oracle Cloud free tier, AWS, GCP, a home server ...)
 
-Any Ubuntu, Debian or Fedora machine with a public IP and SSH access works:
+Any Ubuntu, Debian, Fedora, Alpine or Arch Linux machine with a public IP and SSH access works:
 
 ```sh
 python3 -m setu deploy ssh --host root@203.0.113.10
