@@ -1,5 +1,7 @@
 # Connecting your devices
 
+English · [हिन्दी](clients.hi.md) · [বাংলা](clients.bn.md)
+
 Install the official WireGuard app, then import the config Setu gives you.
 
 | Device | App | Import |
@@ -9,6 +11,10 @@ Install the official WireGuard app, then import the config Setu gives you.
 | macOS | WireGuard (Mac App Store) | **Import tunnel(s) from file** (`setu show NAME --out NAME.conf`) |
 | Windows | wireguard.com/install | **Import tunnel(s) from file** |
 | Linux | `sudo apt install wireguard` | `sudo cp NAME.conf /etc/wireguard/ && sudo wg-quick up NAME` |
+
+## Sending a setup to a friend or family member
+
+`setu card NAME` writes one HTML page with the QR code and three plain steps (`--lang en|hi|bn`). Send it in a private chat. It contains the device key, so delete it afterwards.
 
 Tips
 

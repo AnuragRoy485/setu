@@ -16,7 +16,10 @@ import time
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
-from setu import cli, config, qr, system, web  # noqa: E402
+import datetime as dt  # noqa: E402
+import random  # noqa: E402
+
+from setu import card, cli, config, doctor, qr, system, usage, web  # noqa: E402
 from setu import state as S  # noqa: E402
 
 OUT = os.path.join(ROOT, "assets")
@@ -81,19 +84,43 @@ def main():
         st["devices"]["guest-tv"]["public_key"]: {"endpoint": None, "handshake": 0, "rx": 0, "tx": 0},
     }
     system.wg_dump = lambda *_a, **_k: stats
+    # demo traffic history: a believable month, relative to today
+    rng = random.Random(4)
+    hist = {"version": 1, "last": {}, "devices": {}}
+    today = dt.datetime.now(dt.timezone.utc)
+    weight = {"alice-phone": 1.0, "alice-laptop": 2.2, "bob-iphone": 0.0, "guest-tv": 0.0}
+    for n, w in weight.items():
+        days, hours = {}, {}
+        for i in range(30):
+            k = (today - dt.timedelta(days=i)).strftime("%Y-%m-%d")
+            base = w * rng.uniform(0.1, 1.0) * (1.6 if i % 7 in (0, 6) else 1.0)
+            days[k] = [int(base * 700e6), int(base * 60e6)] if w else [0, 0]
+        for i in range(24):
+            k = (today - dt.timedelta(hours=i)).strftime("%Y-%m-%dT%H")
+            hours[k] = [int(w * rng.uniform(0, 90e6)), int(w * rng.uniform(0, 8e6))] if w and not 1 <= (today.hour - i) % 24 <= 6 else [0, 0]
+        hist["devices"][n] = {"days": days, "hours": hours}
+    usage.save(hist)
+    doctor.run_checks = lambda *_a, **_k: [("WireGuard is running", True, ""), ("DNS filter running", True, "")]
+    system.stats = lambda: {"uptime_s": 17 * 86400 + 5 * 3600, "load": [0.04, 0.06, 0.05], "mem_used_pct": 38, "disk_free_pct": 81}
     # --- web panel screenshots (real panel, demo data) ---
-    page = web.PAGE.replace("let tok=sessionStorage.tok||'';", "let tok='demo';")
+    page = web.PAGE.replace("let tok=sessionStorage.tok||''", "let tok='demo'").replace("prefers-color-scheme:light", "prefers-color-scheme:never")
+    assert "let tok='demo'" in page
     shot_page = page + "<script>setTimeout(()=>show('alice-phone'),500)</script>"
     web.PAGE = page
     srv = web.serve(store, system.Runner(True), "127.0.0.1", 0)
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     base = "http://127.0.0.1:%d/" % srv.server_address[1]
-    for name, extra, w, h in (("panel", "", 1100, 800), ("panel-qr", "<script>setTimeout(()=>show('alice-phone'),500)</script>", 1100, 760)):
+    for name, extra, w, h in (("panel", "", 1100, 960),
+                              ("panel-qr", "<script>setTimeout(()=>show('alice-phone'),500)</script>", 1100, 980),
+                              ("panel-usage", "<script>setTimeout(()=>usage('alice-laptop'),500)</script>", 1100, 760)):
         web.PAGE = page.replace("</body>", extra + "</body>")
         subprocess.run([CHROME, "--headless=new", "--no-sandbox", "--disable-gpu", "--hide-scrollbars",
                         "--force-device-scale-factor=2", "--window-size=%d,%d" % (w, h), "--virtual-time-budget=5000",
                         "--screenshot=" + os.path.join(OUT, name + ".png"), base], check=True, capture_output=True)
     srv.shutdown()
+    # --- setup card (what you send to a friend) ---
+    card_html = card.render(st, st["devices"]["alice-phone"], "en")
+    shot(card_html.replace("alice-phone", "Asha"), "card", 620, 1010, 2, budget=2000)
     # --- terminal screenshots ---
     d = st["devices"]["alice-phone"]
     conf = config.render_client_conf(st, d)
@@ -101,7 +128,7 @@ def main():
               prompt("setu deploy hetzner --region hel1 --first-device alice-phone") +
               "Creating hetzner server 'setu-vpn' in hel1 ...\n\n"
               "Your server is at 203.0.113.42. Scan this with the WireGuard app:\n\n" + qr_html(conf) +
-              "\n\nSaved in ./setu-output: alice-phone.conf, alice-phone.png, admin-token.txt\n"
+              "\n\nSaved in ./setu-output: alice-phone.conf, alice-phone.png, alice-phone-card.html (a page you can send to the device's owner), admin-token.txt\n"
               "The server needs about 2-3 minutes to finish installing; connect after that.\n"
               "Web panel (while connected): http://10.66.66.1:8080   (token in admin-token.txt)")
     term(deploy, "~ - zsh", "terminal-deploy", 860, 700)

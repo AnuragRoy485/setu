@@ -4,7 +4,7 @@ Run `setu COMMAND --help` for every option.
 
 | Command | What it does |
 |---|---|
-| `setu deploy hetzner\|digitalocean\|vultr\|linode\|ssh` | Create a server (or set one up over SSH) and print the first QR code |
+| `setu deploy hetzner\|digitalocean\|vultr\|linode\|scaleway\|ssh` | Create a server (or set one up over SSH) and print the first QR code |
 | `setu destroy PROVIDER ID` | Delete a cloud server made by `deploy` |
 | `setu server init` | Install on the current machine (used by `install.sh`) |
 | `setu add NAME` | Add a device. `--expires DAYS`, `--split CIDRS`, `--public-key KEY`, `--out FILE`, `--png FILE` |
@@ -14,6 +14,11 @@ Run `setu COMMAND --help` for every option.
 | `setu show NAME` / `setu qr NAME` | Print the `.conf` or QR code again |
 | `setu status` | Server summary and device list |
 | `setu doctor` | Health checks with fix hints |
+| `setu health [--json]` | Same checks plus uptime, load, memory and disk. Exit code 1 if anything fails, so it works in monitoring scripts |
+| `setu usage [NAME] [--days N] [--json]` | Data downloaded and uploaded per device |
+| `setu sample` | Record traffic counters (a timer runs this every 5 minutes) |
+| `setu card NAME [--lang en\|hi\|bn] [--out FILE]` | One-page HTML setup card with QR code to send to someone |
+| `setu expire NAME DAYS\|never` | Change when a device expires |
 | `setu web` | Run the web panel in the foreground |
 | `setu token` | New web panel admin token |
 | `setu dns update\|list\|block D\|unblock D\|allow D\|disallow D` | Ad blocking rules |

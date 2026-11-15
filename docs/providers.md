@@ -8,12 +8,15 @@
 | `digitalocean` | `DIGITALOCEAN_TOKEN` | Control Panel > API > Generate New Token (write scope) |
 | `vultr` | `VULTR_API_KEY` | Account > API > Enable API (and allow your IP) |
 | `linode` | `LINODE_TOKEN` | Cloud Manager > Profile > API Tokens (read/write for Linodes) |
+| `scaleway` | `SCW_SECRET_KEY` and `SCW_DEFAULT_PROJECT_ID` | Console > IAM > API keys (the secret key) and Project settings (the project id) |
 
 Pass the token with `--token` instead of the variable if you prefer. Tokens are never written to disk.
 
 Options: `--name`, `--region`, `--size`, `--ssh-key ~/.ssh/id_ed25519.pub`, `--first-device`, `--dns`, `--port`, `--out-dir`.
 
 If you pass `--ssh-key`, the key is registered with the provider, installed on the server and password SSH login is turned off.
+
+Scaleway notes: `--region` takes a zone such as `fr-par-1` or `nl-ams-1`, and the server id is printed as `zone/uuid` (pass it back to `setu destroy scaleway ZONE/UUID`). Scaleway support is new and has not been run against a live account yet, so please open an issue if a step fails.
 
 ## Oracle Cloud, AWS, GCP and others
 
