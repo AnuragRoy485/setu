@@ -44,6 +44,16 @@ def run_checks(st: Dict[str, Any], runner: system.Runner) -> List[Check]:
                 n = sum(1 for _ in f)
         add("Blocklist loaded (%d domains)" % n, n > 0 or st["dns"]["blocklist"] == "off",
             "run `setu dns update`")
+    # IPv6: informational, since many cheap servers have no IPv6 at all
+    has_v6 = runner.run(["ip", "-6", "route", "show", "default"], check=False).stdout.strip() != ""
+    if has_v6:
+        r6 = runner.run(["ip6tables", "-t", "nat", "-S", "POSTROUTING"], check=False).stdout
+        add("IPv6 NAT (masquerade) rule present", "MASQUERADE" in r6 and s["ipv6_net"] in r6,
+            "systemctl restart wg-quick@%s" % iface)
+    else:
+        out.append(("Server has no IPv6 route: devices use IPv4 only (this is fine)", True, ""))
+    free = system.disk_free_pct("/")
+    add("Disk space (%d%% free)" % free, free >= 10, "free up disk space: journalctl --vacuum-size=50M")
     peers = system.wg_dump(st, runner)
     live = [d for d in st["devices"].values() if d["public_key"] in peers
             and peers[d["public_key"]]["handshake"] > 0
@@ -62,3 +72,12 @@ def format_checks(checks: List[Check]) -> str:
     for name, ok, hint in checks:
         lines.append("  %s %s%s" % ("OK  " if ok else "FAIL", name, "  -> " + hint if hint else ""))
     return "\n".join(lines)
+
+
+def summary(st: Dict[str, Any], runner: system.Runner) -> Dict[str, Any]:
+    """Machine-readable health for the web panel and `setu health --json`."""
+    checks = run_checks(st, runner)
+    bad = [c for c in checks if not c[1]]
+    return {"ok": not bad,
+            "checks": [{"name": n, "ok": ok, "hint": h} for n, ok, h in checks],
+            "system": system.stats()}

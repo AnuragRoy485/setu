@@ -111,3 +111,28 @@ def have(cmd: str) -> bool:
 
 def load_store(path: Optional[str] = None) -> Store:
     return Store(path or os.path.join(ETC, "state.json"))
+
+
+def disk_free_pct(path: str = "/") -> int:
+    try:
+        st = os.statvfs(path)
+        return int(100 * st.f_bavail / st.f_blocks) if st.f_blocks else 100
+    except OSError:
+        return 100
+
+
+def stats() -> Dict[str, Any]:
+    """Uptime, load, memory and disk, read straight from /proc (Linux). Missing values are None."""
+    out: Dict[str, Any] = {"uptime_s": None, "load": None, "mem_used_pct": None, "disk_free_pct": disk_free_pct()}
+    try:
+        out["uptime_s"] = int(float(open("/proc/uptime").read().split()[0]))
+        out["load"] = [float(x) for x in open("/proc/loadavg").read().split()[:3]]
+        mem = {}
+        for line in open("/proc/meminfo"):
+            k, _, v = line.partition(":")
+            mem[k] = int(v.split()[0])
+        if mem.get("MemTotal"):
+            out["mem_used_pct"] = int(100 * (1 - mem.get("MemAvailable", 0) / mem["MemTotal"]))
+    except (OSError, ValueError, IndexError):
+        pass
+    return out

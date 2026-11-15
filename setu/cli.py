@@ -13,7 +13,7 @@ import io
 import time
 from typing import Any, Dict, List, Optional
 
-from . import __version__, cloudinit, config, crypto, doctor, providers, qr, server, system
+from . import __version__, card, cloudinit, config, crypto, doctor, providers, qr, server, system, usage
 from . import state as S
 from .state import SetuError
 
@@ -181,6 +181,85 @@ def cmd_doctor(args) -> int:
     return 1 if bad else 0
 
 
+def cmd_health(args) -> int:
+    st = store_for(args).load()
+    res = doctor.summary(st, system.Runner(args.dry_run))
+    if args.json:
+        print(json.dumps(res, indent=2))
+    else:
+        print(doctor.format_checks([(c["name"], c["ok"], c["hint"]) for c in res["checks"]]))
+        sy = res["system"]
+        print("\nuptime %s, load %s, memory used %s%%, disk free %s%%" % (
+            "%dd %dh" % (sy["uptime_s"] // 86400, sy["uptime_s"] % 86400 // 3600) if sy["uptime_s"] is not None else "?",
+            " ".join("%.2f" % x for x in sy["load"]) if sy["load"] else "?",
+            sy["mem_used_pct"] if sy["mem_used_pct"] is not None else "?", sy["disk_free_pct"]))
+    return 0 if res["ok"] else 1
+
+
+def cmd_sample(args) -> int:
+    store = store_for(args)
+    usage.sample(store.load(), system.Runner(args.dry_run))
+    return 0
+
+
+def _fmt_bytes(n: int) -> str:
+    for unit, div in (("GB", 1e9), ("MB", 1e6), ("KB", 1e3)):
+        if n >= div:
+            return "%.1f %s" % (n / div, unit)
+    return "%d B" % n
+
+
+def cmd_usage(args) -> int:
+    st = store_for(args).load()
+    names = [args.name] if args.name else list(st["devices"])
+    for n in names:
+        if n not in st["devices"]:
+            raise SetuError("no device called %r (see `setu list`)" % n)
+    data = usage.load()
+    ov = usage.overview(data, names, args.days)
+    if args.json:
+        print(json.dumps(ov, indent=2))
+        return 0
+    if not names:
+        print("No devices yet.")
+        return 0
+    print("%-20s %12s %12s   (last %d days)" % ("DEVICE", "DOWNLOADED", "UPLOADED", args.days))
+    for n in names:
+        sr = ov["devices"][n]
+        print("%-20s %12s %12s" % (n, _fmt_bytes(sr["total_rx"]), _fmt_bytes(sr["total_tx"])))
+    if not data["devices"]:
+        print("\nNo history yet: the sampler runs every 5 minutes once the server is set up.")
+    return 0
+
+
+def cmd_card(args) -> int:
+    st = store_for(args).load()
+    if args.name not in st["devices"]:
+        raise SetuError("no device called %r (see `setu list`)" % args.name)
+    dev = st["devices"][args.name]
+    if not dev.get("private_key"):
+        raise SetuError("%s was added with its own key, so there is nothing to put on a card" % args.name)
+    out = args.out or "%s-card.html" % args.name
+    fd = os.open(out, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w") as f:
+        f.write(card.render(st, dev, args.lang))
+    print("Saved %s. It contains the device key: send it privately and delete it afterwards." % out)
+    return 0
+
+
+def cmd_expire(args) -> int:
+    store = store_for(args)
+    runner = system.Runner(args.dry_run)
+    days = None if args.days.lower() in ("never", "none", "0") else args.days
+    with store.locked():
+        st = store.load()
+        when = S.set_expiry(st, args.name, days)
+        store.save(st)
+        system.apply(st, runner)
+    print("%s %s" % (args.name, "will expire at %s" % when if when else "will not expire"))
+    return 0
+
+
 def cmd_web(args) -> int:
     store = store_for(args)
     st = store.load()
@@ -296,6 +375,10 @@ def _finish_deploy(args, st, first, token, ip: str) -> None:
         f.write(text)
     with open(os.path.join(outdir, "%s.png" % first["name"]), "wb") as f:
         f.write(qr.to_png(qr.make(text, "L")))
+    cardfile = os.path.join(outdir, "%s-card.html" % first["name"])
+    fd = os.open(cardfile, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w") as f:
+        f.write(card.render(st, first, "en"))
     tokfile = os.path.join(outdir, "admin-token.txt")
     fd = os.open(tokfile, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
     with os.fdopen(fd, "w") as f:
@@ -303,7 +386,8 @@ def _finish_deploy(args, st, first, token, ip: str) -> None:
     v4, _ = S.server_ips(st)
     print("\nYour server is at %s. Scan this with the WireGuard app:\n" % ip)
     show_qr(text)
-    print("\nSaved in %s: %s.conf, %s.png, admin-token.txt" % (outdir, first["name"], first["name"]))
+    print("\nSaved in %s: %s.conf, %s.png, %s-card.html (a page you can send to the device's owner), admin-token.txt"
+          % (outdir, first["name"], first["name"], first["name"]))
     print("The server needs about 2-3 minutes to finish installing; connect after that.")
     print("Web panel (while connected): http://%s:%d   (token in admin-token.txt)" % (v4, st["web"]["port"]))
 
@@ -396,7 +480,7 @@ def build_parser() -> argparse.ArgumentParser:
         p.add_argument("--blocklist", default="ads", help="ads | family | off | URL of a hosts-format list")
         p.add_argument("--mtu", type=int, default=None)
 
-    p = add("deploy", "Create a VPN server: setu deploy hetzner|digitalocean|vultr|ssh")
+    p = add("deploy", "Create a VPN server: setu deploy " + "|".join(list(providers.PROVIDERS) + ["ssh"]))
     p.add_argument("target")
     common_vpn(p)
     p.add_argument("--token", help="provider API token (or use the provider's env var)")
@@ -466,6 +550,25 @@ def build_parser() -> argparse.ArgumentParser:
     p.set_defaults(fn=cmd_status)
     p = add("doctor", "Check that everything is healthy")
     p.set_defaults(fn=cmd_doctor)
+    p = add("health", "Health checks plus uptime, load, memory and disk (exit 1 if anything fails)")
+    p.add_argument("--json", action="store_true")
+    p.set_defaults(fn=cmd_health)
+    p = add("usage", "Data used per device (needs the 5-minute sampler, installed by default)")
+    p.add_argument("name", nargs="?")
+    p.add_argument("--days", type=int, default=30)
+    p.add_argument("--json", action="store_true")
+    p.set_defaults(fn=cmd_usage)
+    p = add("sample", "Record traffic counters (runs from a timer every 5 minutes)")
+    p.set_defaults(fn=cmd_sample)
+    p = add("card", "Write a one-page HTML setup card (QR + steps) to send to someone")
+    p.add_argument("name")
+    p.add_argument("--lang", choices=card.LANGS, default="en")
+    p.add_argument("--out")
+    p.set_defaults(fn=cmd_card)
+    p = add("expire", "Change when a device expires (days from now, or 'never')")
+    p.add_argument("name")
+    p.add_argument("days")
+    p.set_defaults(fn=cmd_expire)
     p = add("web", "Run the web panel in the foreground")
     p.add_argument("--bind")
     p.add_argument("--port", type=int)

@@ -59,20 +59,50 @@ Environment=PYTHONPATH={opt}
 ExecStart=/usr/bin/env python3 -m setu maintenance
 """
 
+UNIT_SAMPLE_TIMER = """[Unit]
+Description=Setu usage sampler (per-device traffic history)
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=5min
+
+[Install]
+WantedBy=timers.target
+"""
+
+UNIT_SAMPLE = """[Unit]
+Description=Setu usage sample
+
+[Service]
+Type=oneshot
+Environment=PYTHONPATH={opt}
+ExecStart=/usr/bin/env python3 -m setu sample
+"""
+
 WRAPPER = """#!/bin/sh
 exec env PYTHONPATH=%s python3 -m setu "$@"
 """ % OPT
 
 
-def detect_os() -> str:
-    try:
-        text = open("/etc/os-release").read().lower()
-    except OSError:
-        return "unknown"
+def detect_os(text: Optional[str] = None) -> str:
+    """Package manager family for this host: apt, dnf, pacman, alpine or unknown."""
+    if text is None:
+        try:
+            text = open("/etc/os-release").read()
+        except OSError:
+            return "unknown"
+    text = text.lower()
     if "debian" in text or "ubuntu" in text:
         return "apt"
     if any(x in text for x in ("fedora", "rhel", "centos", "rocky", "almalinux")):
         return "dnf"
+    ids = {ln.split("=", 1)[1].strip('"') for ln in text.splitlines()
+           if ln.startswith(("id=", "id_like="))}
+    words = {w for i in ids for w in i.split()}
+    if words & {"arch", "archarm", "manjaro", "endeavouros"}:
+        return "pacman"
+    if "alpine" in words:
+        return "alpine"
     return "unknown"
 
 
@@ -91,8 +121,18 @@ def install_packages(runner: system.Runner, adblock: bool, harden: bool) -> None
         if adblock:
             pk.append("dnsmasq")
         runner.run(["dnf", "install", "-y"] + pk)
+    elif mgr == "pacman":
+        pk = ["wireguard-tools", "iptables", "iproute2", "ca-certificates"]
+        if adblock:
+            pk.append("dnsmasq")
+        if harden:
+            pk.append("ufw")
+        runner.run(["pacman", "-Sy", "--noconfirm", "--needed"] + pk)
+    elif mgr == "alpine":
+        raise SetuError("Alpine uses OpenRC instead of systemd, which Setu does not support yet "
+                        "(see issue #4). Use Debian, Ubuntu, Fedora or Arch.")
     else:
-        raise SetuError("unsupported OS: Setu supports Debian/Ubuntu and Fedora/RHEL family. "
+        raise SetuError("unsupported OS: Setu supports Debian/Ubuntu, Fedora/RHEL family and Arch. "
                         "Install wireguard-tools, iptables%s yourself and re-run with --skip-packages."
                         % (", dnsmasq" if adblock else ""))
 
@@ -143,8 +183,11 @@ def write_units(st: Dict[str, Any], runner: system.Runner) -> None:
         names.append("setu-web.service")
     system.write(os.path.join(unit_dir, "setu-maintenance.service"), UNIT_MAINT.format(opt=OPT))
     system.write(os.path.join(unit_dir, "setu-maintenance.timer"), UNIT_TIMER)
+    system.write(os.path.join(unit_dir, "setu-sample.service"), UNIT_SAMPLE.format(opt=OPT))
+    system.write(os.path.join(unit_dir, "setu-sample.timer"), UNIT_SAMPLE_TIMER)
     runner.run(["systemctl", "daemon-reload"])
     runner.run(["systemctl", "enable", "--now", "setu-maintenance.timer"], check=False)
+    runner.run(["systemctl", "enable", "--now", "setu-sample.timer"], check=False)
     for n in names:
         runner.run(["systemctl", "enable", n], check=False)
         runner.run(["systemctl", "restart", n], check=False)
@@ -227,11 +270,12 @@ def maintenance(store: Store, runner: system.Runner, fetch=None) -> List[str]:
 
 def uninstall(st: Optional[Dict[str, Any]], runner: system.Runner, purge: bool = False) -> None:
     iface = (st or {}).get("server", {}).get("interface", "wg0")
-    for unit in ("setu-web.service", "setu-dns.service", "setu-maintenance.timer"):
+    for unit in ("setu-web.service", "setu-dns.service", "setu-maintenance.timer", "setu-sample.timer"):
         runner.run(["systemctl", "disable", "--now", unit], check=False)
     runner.run(["systemctl", "disable", "--now", "wg-quick@%s" % iface], check=False)
     for f in ("/etc/systemd/system/setu-web.service", "/etc/systemd/system/setu-dns.service",
               "/etc/systemd/system/setu-maintenance.service", "/etc/systemd/system/setu-maintenance.timer",
+              "/etc/systemd/system/setu-sample.service", "/etc/systemd/system/setu-sample.timer",
               "/etc/sysctl.d/99-setu.conf", "/usr/local/bin/setu",
               "/etc/wireguard/%s.conf" % iface):
         try:

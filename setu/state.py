@@ -124,6 +124,24 @@ def remove_device(st: Dict[str, Any], name: str) -> None:
     del st["devices"][name]
 
 
+def set_expiry(st: Dict[str, Any], name: str, days: Optional[float]) -> Optional[str]:
+    """Set the device to expire `days` from now, or never when days is None. Returns the new time."""
+    if name not in st["devices"]:
+        raise SetuError("no device called %r" % name)
+    if days in (None, "", 0):
+        st["devices"][name]["expires"] = None
+        return None
+    try:
+        days = float(days)
+    except (TypeError, ValueError):
+        raise SetuError("days must be a number")
+    if not 0 < days <= 3650:
+        raise SetuError("days must be between 0 and 3650")
+    when = dt.datetime.now(dt.timezone.utc) + dt.timedelta(days=days)
+    st["devices"][name]["expires"] = when.strftime("%Y-%m-%dT%H:%M:%SZ")
+    return st["devices"][name]["expires"]
+
+
 def expired(dev: Dict[str, Any], at: Optional[dt.datetime] = None) -> bool:
     if not dev.get("expires"):
         return False
