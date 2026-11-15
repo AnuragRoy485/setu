@@ -6,8 +6,10 @@ from .digitalocean import DigitalOcean
 from .hetzner import Hetzner
 from .vultr import Vultr
 from .linode import Linode
+from .scaleway import Scaleway
 
-PROVIDERS = {"hetzner": Hetzner, "digitalocean": DigitalOcean, "vultr": Vultr, "linode": Linode}
+PROVIDERS = {"hetzner": Hetzner, "digitalocean": DigitalOcean, "vultr": Vultr, "linode": Linode,
+             "scaleway": Scaleway}
 
 
 def get(name: str, token: str, **kw) -> Provider:

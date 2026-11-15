@@ -21,11 +21,20 @@ class Provider:
         self.token = token
         self._open = opener or urllib.request.urlopen
 
-    def call(self, method: str, path: str, body: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-        data = json.dumps(body).encode() if body is not None else None
-        req = urllib.request.Request(self.api + path, data=data, method=method, headers={
-            "Authorization": "Bearer " + self.token, "Content-Type": "application/json",
-            "User-Agent": "setu"})
+    def headers(self) -> Dict[str, str]:
+        """Auth headers; a provider with a different scheme overrides this."""
+        return {"Authorization": "Bearer " + self.token}
+
+    def call(self, method: str, path: str, body: Optional[Dict[str, Any]] = None,
+             raw: Optional[str] = None) -> Dict[str, Any]:
+        """JSON request; pass `raw` instead of `body` to send plain text."""
+        if raw is not None:
+            data, ctype = raw.encode(), "text/plain"
+        else:
+            data, ctype = (json.dumps(body).encode() if body is not None else None), "application/json"
+        hdrs = {"Content-Type": ctype, "User-Agent": "setu"}
+        hdrs.update(self.headers())
+        req = urllib.request.Request(self.api + path, data=data, method=method, headers=hdrs)
         try:
             with self._open(req, timeout=60) as r:
                 raw = r.read().decode()
