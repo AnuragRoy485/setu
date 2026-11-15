@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "setu-vpn"
+version = "0.1.0"
+description = "Set up your own WireGuard VPN in one command: cloud deploy, QR codes, ad blocking, web panel."
+readme = "README.md"
+requires-python = ">=3.8"
+license = { text = "MIT" }
+authors = [{ name = "Anurag Roy" }]
+keywords = ["vpn", "wireguard", "self-hosted", "privacy", "dns", "adblock"]
+classifiers = [
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3",
+  "Topic :: System :: Networking",
+  "Environment :: Console",
+]
+dependencies = []
+
+[project.urls]
+Homepage = "https://github.com/AnuragRoy485/setu"
+Issues = "https://github.com/AnuragRoy485/setu/issues"
+
+[project.scripts]
+setu = "setu.cli:main"
+
+[tool.setuptools]
+packages = ["setu", "setu.providers"]
