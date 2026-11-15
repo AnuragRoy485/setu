@@ -5,8 +5,9 @@ from .base import Provider
 from .digitalocean import DigitalOcean
 from .hetzner import Hetzner
 from .vultr import Vultr
+from .linode import Linode
 
-PROVIDERS = {"hetzner": Hetzner, "digitalocean": DigitalOcean, "vultr": Vultr}
+PROVIDERS = {"hetzner": Hetzner, "digitalocean": DigitalOcean, "vultr": Vultr, "linode": Linode}
 
 
 def get(name: str, token: str, **kw) -> Provider:
