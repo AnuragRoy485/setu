@@ -1,3 +1,6 @@
+import random
+import string
+
 import pytest
 
 from setu import qr
@@ -27,21 +30,45 @@ def test_renderers():
     assert "█" in qr.to_terminal(m) or "▀" in qr.to_terminal(m)
 
 
-@pytest.mark.parametrize("ec", ["L", "M"])
-def test_decodes_with_opencv(ec):
-    cv2 = pytest.importorskip("cv2")
+def _image(m, scale=6, border=4):
     np = pytest.importorskip("numpy")
+    n = len(m)
+    img = np.full(((n + 2 * border) * scale,) * 2, 255, np.uint8)
+    for y in range(n):
+        for x in range(n):
+            if m[y][x]:
+                img[(y + border) * scale:(y + border + 1) * scale, (x + border) * scale:(x + border + 1) * scale] = 0
+    return img
+
+
+def _decode(m):
+    zx = pytest.importorskip("zxingcpp")  # pip install zxing-cpp
+    got = zx.read_barcodes(_image(m))
+    return got[0].text if got else None
+
+
+@pytest.mark.parametrize("ec", ["L", "M"])
+def test_decodes_real_configs(ec):
+    """Real client configs of many random keys decode back exactly.
+
+    Uses zxing-cpp. OpenCV's QRCodeDetector fails on roughly 1 in 7 large, perfectly valid
+    codes (versions 14+), which made the old test flaky; zxing decodes all of them."""
     from setu import config, state as S
-    s = S.new_state("203.0.113.7")
-    d = S.add_device(s, "alice-phone")
-    texts = ["https://github.com/AnuragRoy485/setu", "x" * 120, config.render_client_conf(s, d)]
-    for text in texts:
-        m = qr.make(text, ec)
-        n, sc, b = len(m), 8, 4
-        img = np.full(((n + 2 * b) * sc,) * 2, 255, np.uint8)
-        for y in range(n):
-            for x in range(n):
-                if m[y][x]:
-                    img[(y + b) * sc:(y + b + 1) * sc, (x + b) * sc:(x + b + 1) * sc] = 0
-        got, _, _ = cv2.QRCodeDetector().detectAndDecode(img)
-        assert got == text
+    for _ in range(25):
+        s = S.new_state("203.0.113.7")
+        d = S.add_device(s, "alice-phone")
+        text = config.render_client_conf(s, d)
+        assert _decode(qr.make(text, ec)) == text
+
+
+def test_decodes_many_lengths():
+    rng = random.Random(7)
+    alphabet = string.ascii_letters + string.digits + "+/=: \n"
+    for length in list(range(1, 200, 5)) + list(range(200, 1000, 50)):
+        for ec in ("L", "M"):
+            text = "".join(rng.choice(alphabet) for _ in range(length))
+            try:
+                m = qr.make(text, ec)
+            except ValueError:
+                continue
+            assert _decode(m) == text, (length, ec)
