@@ -5,7 +5,7 @@
 <p align="center">
   <img alt="Tests: 61 passing" src="https://img.shields.io/badge/tests-61%20passing-brightgreen.svg">
   <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-14b8a6.svg"></a>
-  <img alt="Python 3.8+" src="https://img.shields.io/badge/python-3.8%2B-3776ab.svg">
+  <img alt="Python 3.10+" src="https://img.shields.io/badge/python-3.10%2B-3776ab.svg">
   <img alt="Dependencies: none" src="https://img.shields.io/badge/dependencies-none-success.svg">
   <img alt="WireGuard" src="https://img.shields.io/badge/protocol-WireGuard-88171a.svg">
   <img alt="Server: Ubuntu, Debian, Fedora, Arch" src="https://img.shields.io/badge/server-Ubuntu%20%7C%20Debian%20%7C%20Fedora%20%7C%20Arch-orange.svg">
@@ -31,7 +31,7 @@ It is built for people who want the privacy of a self-hosted VPN without learnin
 
 ## Quick start
 
-You need a computer with Python 3.8+ and the [WireGuard app](https://www.wireguard.com/install/) on your phone or laptop. Pick **one** of the three ways to get a server.
+You need a computer with Python 3.10+ and the [WireGuard app](https://www.wireguard.com/install/) on your phone or laptop. Pick **one** of the three ways to get a server.
 
 ### Option A: let Setu create a cloud server (easiest)
 
@@ -160,7 +160,7 @@ Found a problem? See [SECURITY.md](SECURITY.md).
 
 | | Setu | Algo |
 |---|---|---|
-| Needs on your computer | Python 3.8+ (stdlib only) | Python, Ansible and several packages |
+| Needs on your computer | Python 3.10+ (stdlib only) | Python, Ansible and several packages |
 | Setup | One command, QR on screen | Config file, then playbook |
 | Protocols | WireGuard | WireGuard and IPsec |
 | Providers | Hetzner, DigitalOcean, Vultr, Linode, any SSH server | Many more clouds |

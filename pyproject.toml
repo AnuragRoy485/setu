@@ -7,7 +7,7 @@ name = "setu-vpn"
 version = "0.2.0"
 description = "Set up your own WireGuard VPN in one command: cloud deploy, QR codes, ad blocking, web panel."
 readme = "README.md"
-requires-python = ">=3.8"
+requires-python = ">=3.10"
 license = { text = "MIT" }
 authors = [{ name = "Anurag Roy" }]
 keywords = ["vpn", "wireguard", "self-hosted", "privacy", "dns", "adblock"]

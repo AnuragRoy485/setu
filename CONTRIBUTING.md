@@ -30,4 +30,4 @@ By contributing you agree that your work is released under the MIT license.
 
 ## CI
 
-`docs/ci-workflow.yml.example` is a ready GitHub Actions workflow. Copy it to `.github/workflows/ci.yml` to run the tests on every push.
+CI runs on every push and pull request (`.github/workflows/ci.yml`, Python 3.10 and 3.12).
