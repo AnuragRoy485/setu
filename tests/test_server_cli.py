@@ -201,10 +201,12 @@ def test_linode_create():
         ("GET", "/linode/instances/99"): {"id": 99, "ipv4": ["1.2.3.4"]},
     }
     p = PROVIDERS["linode"]("tok", opener=fake_api(routes, calls))
-    assert p.create("n", "us-east", "", "hello") == {"id": "99", "ip": "1.2.3.4"}
+    key = p.ensure_ssh_key("setu", "ssh-ed25519 AAAA test")
+    assert p.create("n", "us-east", "", "hello", key) == {"id": "99", "ip": "1.2.3.4"}
     body = [c for c in calls if c[0][0] == "POST"][0][1]
     assert body["image"] == "linode/ubuntu24.04" and body["type"] == "g6-nanode-1"
-    assert body["user_data"] == "aGVsbG8="
+    assert body["metadata"]["user_data"] == "aGVsbG8="
+    assert len(body["root_pass"]) >= 32 and body["authorized_keys"] == ["ssh-ed25519 AAAA test"]
 
 
 def test_provider_needs_token():

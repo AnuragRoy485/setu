@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import base64
+import secrets
 from typing import Any, Dict
 
-from ..state import SetuError
 from .base import Provider
 
 
@@ -15,10 +15,8 @@ class Linode(Provider):
     default_size = "g6-nanode-1"
 
     def ensure_ssh_key(self, name: str, public_key: str) -> Any:
-        for k in self.call("GET", "/profile/sshkeys")["data"]:
-            if k["ssh_key"].split()[:2] == public_key.split()[:2]:
-                return k["id"]
-        return self.call("POST", "/profile/sshkeys", {"label": name, "ssh_key": public_key})["id"]
+        # Linode takes public keys inline at create time, nothing to register.
+        return public_key.strip()
 
     def create(self, name: str, region: str, size: str, user_data: str, ssh_key: Any = None) -> Dict[str, str]:
         body: Dict[str, Any] = {
@@ -26,10 +24,12 @@ class Linode(Provider):
             "type": size or self.default_size,
             "image": "linode/ubuntu24.04",
             "label": name,
-            "user_data": base64.b64encode(user_data.encode()).decode(),
+            # the API requires a root password with an image; it is never shown, SSH uses keys
+            "root_pass": secrets.token_urlsafe(32) + "Aa1!",
+            "metadata": {"user_data": base64.b64encode(user_data.encode()).decode()},
         }
         if ssh_key:
-            body["ssh_keys"] = [ssh_key]
+            body["authorized_keys"] = [ssh_key]
         inst = self.call("POST", "/linode/instances", body)
 
         def ip():

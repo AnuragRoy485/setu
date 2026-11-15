@@ -7,6 +7,7 @@
 | `hetzner` | `HCLOUD_TOKEN` | Cloud Console > project > Security > API tokens (read and write) |
 | `digitalocean` | `DIGITALOCEAN_TOKEN` | Control Panel > API > Generate New Token (write scope) |
 | `vultr` | `VULTR_API_KEY` | Account > API > Enable API (and allow your IP) |
+| `linode` | `LINODE_TOKEN` | Cloud Manager > Profile > API Tokens (read/write for Linodes) |
 
 Pass the token with `--token` instead of the variable if you prefer. Tokens are never written to disk.
 

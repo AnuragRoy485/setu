@@ -4,7 +4,7 @@ Run `setu COMMAND --help` for every option.
 
 | Command | What it does |
 |---|---|
-| `setu deploy hetzner\|digitalocean\|vultr\|ssh` | Create a server (or set one up over SSH) and print the first QR code |
+| `setu deploy hetzner\|digitalocean\|vultr\|linode\|ssh` | Create a server (or set one up over SSH) and print the first QR code |
 | `setu destroy PROVIDER ID` | Delete a cloud server made by `deploy` |
 | `setu server init` | Install on the current machine (used by `install.sh`) |
 | `setu add NAME` | Add a device. `--expires DAYS`, `--split CIDRS`, `--public-key KEY`, `--out FILE`, `--png FILE` |
